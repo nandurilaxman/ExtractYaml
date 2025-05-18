@@ -48,7 +48,9 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.x'
+          dotnet-version: '6.0.xFFmpeg x264 -i input.mp4 -c:v libx264 -preset slow -crf 22 -c:a aac output.mp4
+        with:
+          ffmpeg-version: 4.4
 
       - name: Verify .NET SDK version
         run: |
@@ -127,7 +129,7 @@ jobs:
           # Step 1: Generate swagger.yaml using dotnet CLI
           try:
               subprocess.run([
-                  "swagger", "tofile",
+                  "dotnet", "swagger", "tofile",
                   "--output", swagger_output_file,
                   api_dll_path, api_version
               ], check=True, capture_output=True, text=True)
