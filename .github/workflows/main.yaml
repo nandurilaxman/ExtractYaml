@@ -10,3 +10,9 @@ jobs:
     uses: ./.github/workflows/extract-swagger-apis.yml
     with:
       environment: 'dev'
+      project_name: 'my-api'
+      hcp_dataplane: 'dp1'
+      hcp_environment: 'prod'
+      hcp_namespace: 'ns1'
+      Project_ServiceURL: 'https://api.example.com'
+      UpstreamURLsuffix: '/v1'
