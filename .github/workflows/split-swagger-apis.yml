@@ -69,6 +69,11 @@ jobs:
         env:
           DOTNET_ROOT: /usr/share/dotnet
 
+      - name: Debug build output
+        run: |
+          ls -la src/API/bin/Release/net6.0/
+          file src/API/bin/Release/net6.0/API.dll || echo "API.dll not found"
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -85,6 +90,11 @@ jobs:
           dotnet tool install Swashbuckle.AspNetCore.Cli --version 6.2.3
           dotnet tool list
           ls -la .dotnet/tools || echo "Tools directory not found (this is expected in some environments)"
+
+      - name: Test swagger tool
+        shell: bash
+        run: |
+          dotnet swagger --version || echo "Swagger tool failed to run"
 
       - name: Generate Swagger YAML
         shell: bash
@@ -126,14 +136,19 @@ jobs:
 
           # Step 1: Generate swagger.yaml using dotnet CLI
           try:
-              subprocess.run([
+              result = subprocess.run([
                   "dotnet", "swagger", "tofile",
                   "--output", swagger_output_file,
                   api_dll_path, api_version
               ], check=True, capture_output=True, text=True)
               print("Swagger YAML generated.")
+              print("stdout:", result.stdout)
+              print("stderr:", result.stderr)
           except subprocess.CalledProcessError as e:
-              print("Failed to generate Swagger YAML:", e)
+              print("Failed to generate Swagger YAML:")
+              print("stdout:", e.stdout)
+              print("stderr:", e.stderr)
+              print("Exit code:", e.returncode)
               sys.exit(1)
 
           # Step 2: Load YAML
