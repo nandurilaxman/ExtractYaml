@@ -14,17 +14,43 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # Updated from v3 to v4
+        uses: actions/checkout@v4
+
+      - name: Debug directory structure
+        run: |
+          pwd  # Print current working directory
+          ls -R  # List all files recursively
+          # Specifically check for the MyApi directory with different cases
+          echo "Checking for MyApi directory:"
+          ls -d MyApi || echo "MyApi not found"
+          echo "Checking for MyAPI directory:"
+          ls -d MyAPI || echo "MyAPI not found"
 
       - name: Set up .NET SDK
-        uses: actions/setup-dotnet@v4  # Updated from v3 to v4
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
       - name: Restore and build the .NET project
         run: |
-          dotnet restore MyApi/MyApi.csproj
-          dotnet build MyApi/MyApi.csproj --no-restore --configuration Release --output ./bin/Release/net8.0
+          # Determine the correct directory case
+          if [ -d "MyApi" ]; then
+            PROJECT_DIR="MyApi"
+          elif [ -d "MyAPI" ]; then
+            PROJECT_DIR="MyAPI"
+          else
+            echo "Error: Neither MyApi nor MyAPI directory found!"
+            exit 1
+          fi
+          # Check if the project file exists
+          if [ ! -f "$PROJECT_DIR/MyApi.csproj" ]; then
+            echo "Error: $PROJECT_DIR/MyApi.csproj not found!"
+            exit 1
+          fi
+          dotnet restore $PROJECT_DIR/MyApi.csproj
+          dotnet build $PROJECT_DIR/MyApi.csproj --no-restore --configuration Release --output ./bin/Release/net8.0
+        env:
+          DOTNET_ROOT: /usr/share/dotnet
 
       - name: Install Swashbuckle CLI tool
         run: |
@@ -36,7 +62,7 @@ jobs:
           dotnet swagger tofile --output swagger.json ./bin/Release/net8.0/MyApi.dll v1
 
       - name: Set up Python 3.9
-        uses: actions/setup-python@v5  # Updated from v4 to v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
@@ -73,7 +99,7 @@ jobs:
           '
 
       - name: Upload API YAML artifacts
-        uses: actions/upload-artifact@v4  # Updated from v3 to v4
+        uses: actions/upload-artifact@v4
         with:
           name: api-yaml-files-${{ inputs.environment }}
           path: output/${{ inputs.environment }}/*.yaml
