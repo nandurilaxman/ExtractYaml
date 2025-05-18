@@ -54,6 +54,10 @@ jobs:
         run: |
           dotnet --version
 
+      - name: Debug project file
+        run: |
+          cat src/API/API.csproj || echo "Project file not found"
+
       - name: Restore and build the .NET project
         run: |
           if [ ! -f "src/API/API.csproj" ]; then
@@ -91,7 +95,7 @@ jobs:
           HCP_NAMESPACE: ${{ inputs.hcp_namespace }}
           PROJECT_SERVICE_URL: ${{ inputs.Project_ServiceURL }}
           HCP_URL_SUFFIXURL: ${{ inputs.UpstreamURLsuffix }}
-          ENVIRONMENT: ${{ inputs.environment }}  # Adjusted to use inputs.environment since github.event.inputs.env_deploy may not be available
+          ENVIRONMENT: ${{ inputs.environment }}
         run: |
           python3 <<EOF
           import os
@@ -145,7 +149,7 @@ jobs:
               },
               "kind": f"federated-azure-apim.api.{api_version}",
               "spec": {
-                  "env": env,  # Fixed typo: environment to env
+                  "env": env,
                   "apiName": f"{project_name}-{env}",
                   "upstreamUrlSuffix": upstream_urlsuffixurl,
                   "openApiSpec": {
@@ -170,8 +174,7 @@ jobs:
           with open(swagger_output_file, "w") as f:
               yaml.dump(output_data, f)
 
-          # os.remove(temp_swagger_file)
-          print("Done! swagger yaml written to"+swagger_output_file)
+          print("Done! swagger yaml written to "+swagger_output_file)
           EOF
 
       - name: Upload API YAML artifacts
