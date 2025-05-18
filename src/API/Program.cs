@@ -5,7 +5,6 @@ builder.Services.AddControllers();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo { Title = "My API", Version = "v1" });
-    // Removed: c.SerializeAsV2 = true;
 });
 
 var app = builder.Build();
