@@ -1,0 +1,12 @@
+name: Deploy API and Extract Swagger
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  call-extract-apis:
+    uses: ./.github/workflows/extract-swagger-apis.yml
+    with:
+      environment: 'dev'
