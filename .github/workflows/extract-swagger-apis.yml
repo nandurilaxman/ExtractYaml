@@ -84,7 +84,7 @@ jobs:
           dotnet new tool-manifest
           dotnet tool install Swashbuckle.AspNetCore.Cli --version 6.2.3
           dotnet tool list
-          ls -la .dotnet/tools
+          ls -la .dotnet/tools || echo "Tools directory not found (this is expected in some environments)"
 
       - name: Split Swagger YAML by path
         shell: bash
