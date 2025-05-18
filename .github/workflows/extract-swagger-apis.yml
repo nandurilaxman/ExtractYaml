@@ -20,45 +20,42 @@ jobs:
         run: |
           pwd  # Print current working directory
           ls -R  # List all files recursively
-          # Specifically check for the MyApi directory with different cases
-          echo "Checking for MyApi directory:"
-          ls -d MyApi || echo "MyApi not found"
-          echo "Checking for MyAPI directory:"
-          ls -d MyAPI || echo "MyAPI not found"
 
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
+      - name: Verify .NET SDK version
+        run: |
+          dotnet --version
+
       - name: Restore and build the .NET project
         run: |
-          # Determine the correct directory case
-          if [ -d "MyApi" ]; then
-            PROJECT_DIR="MyApi"
-          elif [ -d "MyAPI" ]; then
-            PROJECT_DIR="MyAPI"
-          else
-            echo "Error: Neither MyApi nor MyAPI directory found!"
+          if [ ! -f "MyAPI/MyApi.csproj" ]; then
+            echo "Error: MyAPI/MyApi.csproj not found!"
             exit 1
           fi
-          # Check if the project file exists
-          if [ ! -f "$PROJECT_DIR/MyApi.csproj" ]; then
-            echo "Error: $PROJECT_DIR/MyApi.csproj not found!"
-            exit 1
-          fi
-          dotnet restore $PROJECT_DIR/MyApi.csproj
-          dotnet build $PROJECT_DIR/MyApi.csproj --no-restore --configuration Release --output ./bin/Release/net8.0
+          dotnet restore MyAPI/MyApi.csproj
+          dotnet build MyAPI/MyApi.csproj --no-restore --configuration Release --output ./bin/Release/net8.0
         env:
           DOTNET_ROOT: /usr/share/dotnet
 
       - name: Install Swashbuckle CLI tool
         run: |
-          dotnet tool install --global Swashbuckle.AspNetCore.Cli --version 6.2.3
+          dotnet tool install --global Swashbuckle.AspNetCore.Cli --version 6.2.3 || echo "Installation failed"
+          # Verify the tool is installed
+          dotnet tool list --global
+          # Check the tools directory
+          ls -la $HOME/.dotnet/tools
 
       - name: Extract Swagger JSON from DLL
         run: |
           export PATH="$PATH:$HOME/.dotnet/tools"
+          # Verify PATH
+          echo "PATH is: $PATH"
+          # Verify the dotnet swagger command is available
+          which dotnet-swagger || echo "dotnet-swagger not found"
           dotnet swagger tofile --output swagger.json ./bin/Release/net8.0/MyApi.dll v1
 
       - name: Set up Python 3.9
