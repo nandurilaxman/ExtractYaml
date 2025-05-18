@@ -48,9 +48,7 @@ jobs:
       - name: Set up .NET SDK
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '6.0.xFFmpeg x264 -i input.mp4 -c:v libx264 -preset slow -crf 22 -c:a aac output.mp4
-        with:
-          ffmpeg-version: 4.4
+          dotnet-version: '6.0.x'
 
       - name: Verify .NET SDK version
         run: |
