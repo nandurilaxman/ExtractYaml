@@ -231,6 +231,7 @@ jobs:
 
           # Step 2: Extract paths and validate structure
           paths = data.get("spec", {}).get("openApiSpec", {}).get("paths", {})
+          print("Extracted paths:", paths)
           if not paths:
               print("No paths found in openApiSpec.paths. Exiting.")
               exit(1)
@@ -251,23 +252,42 @@ jobs:
               safe_prefix = re.sub(r'[^a-zA-Z0-9]', '_', base_prefix)
               output_filename = f"{project_name}-{safe_prefix}-{env}.yaml"
               print(f"Creating {output_filename} for path group {base_prefix}...")
-
+              
               # Create a new YAML structure with all paths in this group
               split_data = data.copy()
               split_data["metadata"]["name"] = f"oi-efr-npcentralus01-{project_name}-{safe_prefix}-{env}"
               split_data["spec"]["apiName"] = f"{project_name}-{safe_prefix}-{env}"
               split_data["spec"]["openApiSpec"]["paths"] = group_paths
 
-              # Write the split YAML to a new file
-              with open(output_filename, "w") as f:
-                  yaml.dump(split_data, f)
+              # Write the split YAML to a new file with error handling
+              try:
+                  with open(output_filename, "w") as f:
+                      yaml.dump(split_data, f)
+                  print(f"Successfully created {output_filename}")
+              except Exception as e:
+                  print(f"Failed to create {output_filename}: {str(e)}")
+                  raise
 
           print("Done splitting Swagger YAML by path group!")
           EOF
 
-      - name: Debug split YAML files
+      - name: Debug split YAML files before cleanup
         run: |
           ls -la *.yaml
+          for file in *.yaml; do
+            echo "Contents of $file:"
+            cat "$file"
+            echo "-----"
+          done
+
+      - name: Clean up intermediate YAML file
+        run: |
+          rm -f ${{ inputs.project_name }}-swag.yaml
+          echo "Removed ${{ inputs.project_name }}-swag.yaml"
+
+      - name: Debug split YAML files after cleanup
+        run: |
+          ls -la *.yaml || echo "No YAML files found"
           for file in *.yaml; do
             echo "Contents of $file:"
             cat "$file"
