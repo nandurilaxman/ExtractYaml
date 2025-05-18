@@ -1,0 +1,255 @@
+name: Generate and Split Swagger APIs by Path
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'The environment for the build (e.g., dev, qa, prod)'
+        required: true
+        type: string
+      project_name:
+        description: 'The name of the project'
+        required: true
+        type: string
+      hcp_dataplane:
+        description: 'HCP dataplane identifier'
+        required: true
+        type: string
+      hcp_environment:
+        description: 'HCP environment'
+        required: true
+        type: string
+      hcp_namespace:
+        description: 'HCP namespace'
+        required: true
+        type: string
+      Project_ServiceURL:
+        description: 'Project service URL'
+        required: true
+        type: string
+      UpstreamURLsuffix:
+        description: 'Upstream URL suffix'
+        required: true
+        type: string
+
+jobs:
+  generate-and-split-apis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Debug directory structure
+        run: |
+          pwd
+          ls -R
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '6.0.x'
+
+      - name: Verify .NET SDK version
+        run: |
+          dotnet --version
+
+      - name: Debug project file
+        run: |
+          cat src/API/API.csproj || echo "Project file not found"
+
+      - name: Restore and build the .NET project
+        run: |
+          if [ ! -f "src/API/API.csproj" ]; then
+            echo "Error: src/API/API.csproj not found!"
+            exit 1
+          fi
+          dotnet restore src/API/API.csproj
+          dotnet build src/API/API.csproj --no-restore --configuration Release --output ./src/API/bin/Release/net6.0
+        env:
+          DOTNET_ROOT: /usr/share/dotnet
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        shell: bash
+        run: pip install pyyaml
+
+      - name: Install dotnet swagger tool
+        shell: bash
+        run: |
+          dotnet new tool-manifest
+          dotnet tool install Swashbuckle.AspNetCore.Cli --version 6.2.3
+          dotnet tool list
+          ls -la .dotnet/tools || echo "Tools directory not found (this is expected in some environments)"
+
+      - name: Generate Swagger YAML
+        shell: bash
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          HCP_DATAPLANE: ${{ inputs.hcp_dataplane }}
+          HCP_ENVIRONMENT: ${{ inputs.hcp_environment }}
+          HCP_NAMESPACE: ${{ inputs.hcp_namespace }}
+          PROJECT_SERVICE_URL: ${{ inputs.Project_ServiceURL }}
+          HCP_URL_SUFFIXURL: ${{ inputs.UpstreamURLsuffix }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          python3 <<EOF
+          import os
+          import sys
+          import subprocess
+          import yaml
+          from collections import defaultdict
+
+          project_name = os.environ.get("PROJECT_NAME")
+          dataplane = os.environ.get("HCP_DATAPLANE")
+          hcp_environment = os.environ.get("HCP_ENVIRONMENT")
+          namespace = os.environ.get("HCP_NAMESPACE")
+          service_url = os.environ.get("PROJECT_SERVICE_URL")
+          upstream_urlsuffixurl = os.environ.get("HCP_URL_SUFFIXURL")
+          env = os.environ.get("ENVIRONMENT")
+
+          print(project_name)
+          api_version = "v1"
+          github_workspace = os.getenv("GITHUB_WORKSPACE", "")
+          api_dll_path = github_workspace+"/src/API/bin/Release/net6.0/API.dll"
+          if not github_workspace:
+              print("GITHUB_WORKSPACE environment variable is not set.")
+              sys.exit(1)
+
+          swagger_output_file = project_name+"-swag.yaml"
+          print(api_dll_path)
+          print(swagger_output_file)
+
+          # Step 1: Generate swagger.yaml using dotnet CLI
+          try:
+              subprocess.run([
+                  "dotnet", "swagger", "tofile",
+                  "--output", swagger_output_file,
+                  api_dll_path, api_version
+              ], check=True, capture_output=True, text=True)
+              print("Swagger YAML generated.")
+          except subprocess.CalledProcessError as e:
+              print("Failed to generate Swagger YAML:", e)
+              sys.exit(1)
+
+          # Step 2: Load YAML
+          print("Loading Swagger YAML...")
+          with open(swagger_output_file, "r") as f:
+              openapi = yaml.safe_load(f)
+
+          # Step 3: Fetch namespace and construct output data
+          output_data = {
+              "metadata": {
+                  "name": f"oi-efr-npcentralus01-{project_name}-{env}",
+                  "namespace": namespace,
+              },
+              "kind": f"federated-azure-apim.api.{api_version}",
+              "spec": {
+                  "env": env,
+                  "apiName": f"{project_name}-{env}",
+                  "upstreamUrlSuffix": upstream_urlsuffixurl,
+                  "openApiSpec": {
+                      "servers": [{"url": service_url}],
+                      "openapi": openapi.get("openapi", "3.0.0"),
+                      "info": openapi.get("info", {}),
+                      "components": openapi.get("components", {}),
+                      "paths": openapi.get("paths", {}),
+                  },
+              },
+              "dataPlanes": [
+                  dataplane
+              ],
+              "upstreamEnv": env,
+              "catalogEnabled": True,
+              "dataSensitivity": False,
+              "subscriptionRequired": False,
+          }
+
+          # Step 4: Write the yaml file
+          print(output_data)
+          with open(swagger_output_file, "w") as f:
+              yaml.dump(output_data, f)
+
+          print("Done! Swagger YAML written to "+swagger_output_file)
+          EOF
+
+      - name: Debug generated YAML
+        run: |
+          ls -la *.yaml
+          cat ${{ inputs.project_name }}-swag.yaml || echo "Generated YAML file not found"
+
+      - name: Split Swagger YAML by path
+        shell: bash
+        env:
+          PROJECT_NAME: ${{ inputs.project_name }}
+          HCP_DATAPLANE: ${{ inputs.hcp_dataplane }}
+          HCP_ENVIRONMENT: ${{ inputs.hcp_environment }}
+          HCP_NAMESPACE: ${{ inputs.hcp_namespace }}
+          PROJECT_SERVICE_URL: ${{ inputs.Project_ServiceURL }}
+          HCP_URL_SUFFIXURL: ${{ inputs.UpstreamURLsuffix }}
+          ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          python3 <<EOF
+          import os
+          import yaml
+          import re
+
+          project_name = os.environ.get("PROJECT_NAME")
+          dataplane = os.environ.get("HCP_DATAPLANE")
+          hcp_environment = os.environ.get("HCP_ENVIRONMENT")
+          namespace = os.environ.get("HCP_NAMESPACE")
+          service_url = os.environ.get("PROJECT_SERVICE_URL")
+          upstream_urlsuffixurl = os.environ.get("HCP_URL_SUFFIXURL")
+          env = os.environ.get("ENVIRONMENT")
+
+          swagger_input_file = project_name + "-swag.yaml"
+          print(f"Loading Swagger YAML from {swagger_input_file}...")
+
+          # Step 1: Load the input YAML
+          with open(swagger_input_file, "r") as f:
+              data = yaml.safe_load(f)
+
+          # Step 2: Extract paths and validate structure
+          paths = data.get("spec", {}).get("openApiSpec", {}).get("paths", {})
+          if not paths:
+              print("No paths found in openApiSpec.paths. Exiting.")
+              exit(1)
+
+          # Step 3: Split paths into individual YAML files
+          for path, path_details in paths.items():
+              # Sanitize path to create a valid filename (e.g., "/users" -> "users")
+              safe_path = re.sub(r'[^a-zA-Z0-9]', '_', path.strip('/'))
+              output_filename = f"{project_name}-{safe_path}-{env}.yaml"
+              print(f"Creating {output_filename} for path {path}...")
+
+              # Create a new YAML structure with only this path
+              split_data = data.copy()
+              split_data["metadata"]["name"] = f"oi-efr-npcentralus01-{project_name}-{safe_path}-{env}"
+              split_data["spec"]["apiName"] = f"{project_name}-{safe_path}-{env}"
+              split_data["spec"]["openApiSpec"]["paths"] = {path: path_details}
+
+              # Write the split YAML to a new file
+              with open(output_filename, "w") as f:
+                  yaml.dump(split_data, f)
+
+          print("Done splitting Swagger YAML by path!")
+          EOF
+
+      - name: Debug split YAML files
+        run: |
+          ls -la *.yaml
+          for file in *.yaml; do
+            echo "Contents of $file:"
+            cat "$file"
+            echo "-----"
+          done
+
+      - name: Upload split YAML artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: split-api-yaml-files-${{ inputs.environment }}
+          path: ${{ inputs.project_name }}-*.yaml
