@@ -1,0 +1,18 @@
+name: Generate and Split Swagger APIs
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  generate-and-split-apis:
+    uses: ./.github/workflows/split-swagger-apis.yml
+    with:
+      environment: 'dev'
+      project_name: 'my-api'
+      hcp_dataplane: 'dp1'
+      hcp_environment: 'prod'
+      hcp_namespace: 'ns1'
+      Project_ServiceURL: 'https://api.example.com'
+      UpstreamURLsuffix: '/v1'
