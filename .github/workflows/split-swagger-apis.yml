@@ -58,14 +58,14 @@ jobs:
         run: |
           cat src/API/API.csproj || echo "Project file not found"
 
-      - name: Restore and build the .NET project
+      - name: Restore and publish the .NET project
         run: |
           if [ ! -f "src/API/API.csproj" ]; then
             echo "Error: src/API/API.csproj not found!"
             exit 1
           fi
           dotnet restore src/API/API.csproj
-          dotnet build src/API/API.csproj --no-restore --configuration Release --output ./src/API/bin/Release/net6.0
+          dotnet publish src/API/API.csproj --no-restore --configuration Release --output ./src/API/bin/Release/net6.0
         env:
           DOTNET_ROOT: /usr/share/dotnet
 
@@ -241,6 +241,9 @@ jobs:
               # Extract the base prefix (e.g., "/weatherforecast/rain" -> "weatherforecast")
               base_prefix = path.strip('/').split('/')[0]
               path_groups[base_prefix][path] = path_details
+
+          # Debug: Print the grouped paths
+          print("Grouped paths:", dict(path_groups))
 
           # Step 4: Create a YAML file for each path group
           for base_prefix, group_paths in path_groups.items():
