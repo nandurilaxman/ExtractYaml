@@ -182,7 +182,7 @@ jobs:
           ls -la *.yaml
           cat ${{ inputs.project_name }}-swag.yaml || echo "Generated YAML file not found"
 
-      - name: Split Swagger YAML by path
+      - name: Split Swagger YAML by path group
         shell: bash
         env:
           PROJECT_NAME: ${{ inputs.project_name }}
@@ -197,6 +197,7 @@ jobs:
           import os
           import yaml
           import re
+          from collections import defaultdict
 
           project_name = os.environ.get("PROJECT_NAME")
           dataplane = os.environ.get("HCP_DATAPLANE")
@@ -219,24 +220,31 @@ jobs:
               print("No paths found in openApiSpec.paths. Exiting.")
               exit(1)
 
-          # Step 3: Split paths into individual YAML files
+          # Step 3: Group paths by base prefix
+          path_groups = defaultdict(dict)
           for path, path_details in paths.items():
-              # Sanitize path to create a valid filename (e.g., "/users" -> "users")
-              safe_path = re.sub(r'[^a-zA-Z0-9]', '_', path.strip('/'))
-              output_filename = f"{project_name}-{safe_path}-{env}.yaml"
-              print(f"Creating {output_filename} for path {path}...")
+              # Extract the base prefix (e.g., "/weatherforecast/rain" -> "weatherforecast")
+              base_prefix = path.strip('/').split('/')[0]
+              path_groups[base_prefix][path] = path_details
 
-              # Create a new YAML structure with only this path
+          # Step 4: Create a YAML file for each path group
+          for base_prefix, group_paths in path_groups.items():
+              # Sanitize base prefix to create a valid filename (e.g., "weatherforecast")
+              safe_prefix = re.sub(r'[^a-zA-Z0-9]', '_', base_prefix)
+              output_filename = f"{project_name}-{safe_prefix}-{env}.yaml"
+              print(f"Creating {output_filename} for path group {base_prefix}...")
+
+              # Create a new YAML structure with all paths in this group
               split_data = data.copy()
-              split_data["metadata"]["name"] = f"oi-efr-npcentralus01-{project_name}-{safe_path}-{env}"
-              split_data["spec"]["apiName"] = f"{project_name}-{safe_path}-{env}"
-              split_data["spec"]["openApiSpec"]["paths"] = {path: path_details}
+              split_data["metadata"]["name"] = f"oi-efr-npcentralus01-{project_name}-{safe_prefix}-{env}"
+              split_data["spec"]["apiName"] = f"{project_name}-{safe_prefix}-{env}"
+              split_data["spec"]["openApiSpec"]["paths"] = group_paths
 
               # Write the split YAML to a new file
               with open(output_filename, "w") as f:
                   yaml.dump(split_data, f)
 
-          print("Done splitting Swagger YAML by path!")
+          print("Done splitting Swagger YAML by path group!")
           EOF
 
       - name: Debug split YAML files
